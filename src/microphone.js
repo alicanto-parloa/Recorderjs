@@ -1,30 +1,50 @@
-import InlineWorker from "inline-worker";
+/* eslint-disable */
+/**
+ * License (MIT)
+ *
+ * Copyright © 2013 Matt Diamond
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ */
+import InlineWorker from 'inline-worker';
 
-export class Recorder {
-  config = {
-    bufferLen: 4096,
-    numChannels: 1,
-    mimeType: "audio/wav",
-  };
+const defaultConfig = {
+  bufferLen: 4096,
+  numChannels: 2,
+  mimeType: 'audio/wav',
+};
 
-  recording = false;
+class Microphone {
+  constructor(source, config) {
+    this.config = Object.assign({}, defaultConfig, config);
 
-  callbacks = {
-    getBuffer: [],
-    exportWAV: [],
-  };
+    this.recording = false;
 
-  constructor(source, cfg) {
-    Object.assign(this.config, cfg);
+    this.callbacks = {
+      getBuffer: [],
+      exportWAV: []
+    };
+
     this.context = source.context;
-    this.node = (
-      this.context.createScriptProcessor || this.context.createJavaScriptNode
-    ).call(
-      this.context,
-      this.config.bufferLen,
-      this.config.numChannels,
-      this.config.numChannels
-    );
+    this.node = (this.context.createScriptProcessor ||
+    this.context.createJavaScriptNode).call(this.context,
+      this.config.bufferLen, this.config.numChannels, this.config.numChannels);
 
     this.node.onaudioprocess = (e) => {
       if (!this.recording) return;
@@ -34,13 +54,13 @@ export class Recorder {
         buffer.push(e.inputBuffer.getChannelData(channel));
       }
       this.worker.postMessage({
-        command: "record",
-        buffer: buffer,
+        command: 'record',
+        buffer: buffer
       });
     };
 
     source.connect(this.node);
-    this.node.connect(this.context.destination); //this should not be necessary
+    this.node.connect(this.context.destination);    //this should not be necessary
 
     let self = {};
     this.worker = new InlineWorker(function () {
@@ -51,19 +71,19 @@ export class Recorder {
 
       this.onmessage = function (e) {
         switch (e.data.command) {
-          case "init":
+          case 'init':
             init(e.data.config);
             break;
-          case "record":
+          case 'record':
             record(e.data.buffer);
             break;
-          case "exportWAV":
+          case 'exportWAV':
             exportWAV(e.data.type);
             break;
-          case "getBuffer":
+          case 'getBuffer':
             getBuffer();
             break;
-          case "clear":
+          case 'clear':
             clear();
             break;
         }
@@ -94,9 +114,9 @@ export class Recorder {
           interleaved = buffers[0];
         }
         let dataview = encodeWAV(interleaved);
-        let audioBlob = new Blob([dataview], { type: type });
+        let audioBlob = new Blob([dataview], {type: type});
 
-        this.postMessage({ command: "exportWAV", data: audioBlob });
+        this.postMessage({command: 'exportWAV', data: audioBlob});
       }
 
       function getBuffer() {
@@ -104,7 +124,7 @@ export class Recorder {
         for (let channel = 0; channel < numChannels; channel++) {
           buffers.push(mergeBuffers(recBuffers[channel], recLength));
         }
-        this.postMessage({ command: "getBuffer", data: buffers });
+        this.postMessage({command: 'getBuffer', data: buffers});
       }
 
       function clear() {
@@ -147,28 +167,28 @@ export class Recorder {
       function floatTo16BitPCM(output, offset, input) {
         for (let i = 0; i < input.length; i++, offset += 2) {
           let s = Math.max(-1, Math.min(1, input[i]));
-          output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+          output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
         }
       }
 
       function writeString(view, offset, string) {
-        for (let i = 0; i < string.length; i++) {
+        for (let i = 0; i < string.length; i += 1) {
           view.setUint8(offset + i, string.charCodeAt(i));
         }
       }
 
       function encodeWAV(samples) {
-        let buffer = new ArrayBuffer(44 + samples.length * 2);
-        let view = new DataView(buffer);
+        const buffer = new ArrayBuffer(44 + (samples.length * 2));
+        const view = new DataView(buffer);
 
         /* RIFF identifier */
-        writeString(view, 0, "RIFF");
+        writeString(view, 0, 'RIFF');
         /* RIFF chunk length */
-        view.setUint32(4, 36 + samples.length * 2, true);
+        view.setUint32(4, 36 + (samples.length * 2), true);
         /* RIFF type */
-        writeString(view, 8, "WAVE");
+        writeString(view, 8, 'WAVE');
         /* format chunk identifier */
-        writeString(view, 12, "fmt ");
+        writeString(view, 12, 'fmt ');
         /* format chunk length */
         view.setUint32(16, 16, true);
         /* sample format (raw) */
@@ -178,13 +198,13 @@ export class Recorder {
         /* sample rate */
         view.setUint32(24, sampleRate, true);
         /* byte rate (sample rate * block align) */
-        view.setUint32(28, sampleRate * numChannels * 2, true);
+        view.setUint32(28, sampleRate * 4, true);
         /* block align (channel count * bytes per sample) */
         view.setUint16(32, numChannels * 2, true);
         /* bits per sample */
         view.setUint16(34, 16, true);
         /* data chunk identifier */
-        writeString(view, 36, "data");
+        writeString(view, 36, 'data');
         /* data chunk length */
         view.setUint32(40, samples.length * 2, true);
 
@@ -195,7 +215,7 @@ export class Recorder {
     }, self);
 
     this.worker.postMessage({
-      command: "init",
+      command: 'init',
       config: {
         sampleRate: this.context.sampleRate,
         numChannels: this.config.numChannels,
@@ -203,12 +223,13 @@ export class Recorder {
     });
 
     this.worker.onmessage = (e) => {
-      let cb = this.callbacks[e.data.command].pop();
-      if (typeof cb == "function") {
+      const cb = this.callbacks[e.data.command].pop();
+      if (typeof cb === 'function') {
         cb(e.data.data);
       }
     };
   }
+
 
   record() {
     this.recording = true;
@@ -219,40 +240,49 @@ export class Recorder {
   }
 
   clear() {
-    this.worker.postMessage({ command: "clear" });
+    this.worker.postMessage({command: 'clear'});
   }
 
   getBuffer(cb) {
     cb = cb || this.config.callback;
-    if (!cb) throw new Error("Callback not set");
+
+    if (!cb) throw new Error('Callback not set');
 
     this.callbacks.getBuffer.push(cb);
 
-    this.worker.postMessage({ command: "getBuffer" });
+    this.worker.postMessage({command: 'getBuffer'});
   }
 
   exportWAV(cb, mimeType) {
     mimeType = mimeType || this.config.mimeType;
     cb = cb || this.config.callback;
-    if (!cb) throw new Error("Callback not set");
+
+    if (!cb) throw new Error('Callback not set');
 
     this.callbacks.exportWAV.push(cb);
 
     this.worker.postMessage({
-      command: "exportWAV",
+      command: 'exportWAV',
       type: mimeType,
     });
   }
-
-  static forceDownload(blob, filename) {
-    let url = (window.URL || window.webkitURL).createObjectURL(blob);
-    let link = window.document.createElement("a");
-    link.href = url;
-    link.download = filename || "output.wav";
-    let click = document.createEvent("Event");
-    click.initEvent("click", true, true);
-    link.dispatchEvent(click);
-  }
 }
 
-export default Recorder;
+Microphone.forceDownload = function forceDownload(blob, filename) {
+    const a = document.createElement('a');
+
+    a.style = 'display: none';
+    document.body.appendChild(a);
+
+    var url = window.URL.createObjectURL(blob);
+
+    a.href = url;
+    a.download = filename;
+    a.click();
+
+    window.URL.revokeObjectURL(url);
+
+    document.body.removeChild(a);
+};
+
+export default Microphone;
